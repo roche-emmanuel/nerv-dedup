@@ -83,4 +83,15 @@ utils.writeData(dmap, dfile)
 -- Check the current duplicates:
 utils.checkDuplicates(state, cfg)
 
+local nfiles = 0;
+local nfolders = 0;
+for _,v in pairs(dmap.files) do
+  nfiles = nfiles+1
+end
+for _,v in pairs(dmap.folders) do
+  nfolders = nfolders+1
+end
+
+log("Processed ",nfiles," files and ", nfolders," folders.")
+
 -- log("Done.")
