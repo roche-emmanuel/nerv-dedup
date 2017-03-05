@@ -144,19 +144,24 @@ function dirtree(dir, cfg, basedir)
   return coroutine.wrap(function() yieldtree(dir) end)
 end
 
+-- cf. https://luapower.com/md5
 local md5 = require("md5")
+local glue = require("glue")
 
 local computeFileHash = function(fname)
   
-  local m = md5.new()
+  -- local m = md5.new()
+  local m = md5.digest()
   local file = io.open(fname, "rb")
   while true do
     local chunk = file:read(64*1024) -- 64kB at a time
     if not chunk then break end
-    m:update(chunk)
+    -- m:update(chunk)
+    m(chunk)
   end
 
-  return md5.tohex(m:finish())
+  -- return md5.tohex(m:finish())
+  return glue.tohex(m())
 end
 
 local saveHash = function(key, hash, state)
@@ -266,7 +271,8 @@ local checkEntry = function(attr, fname, dmap, state)
     -- In that case we use an emtpy hash:
 
     -- and hash this string:
-    local hash = str=="" and "" or md5.sumhexa(str)
+    -- local hash = str=="" and "" or md5.sumhexa(str)
+    local hash = str=="" and "" or glue.tohex(md5.sum(str))
 
     -- Chekc if this folder was updated:
     if desc.hash and desc.hash ~= hash then
