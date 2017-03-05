@@ -1,3 +1,4 @@
+local serpent = require("serpent")
 
 -- Common utility elements to write log outputs conviniently:
 local writtenTables = {};
@@ -109,7 +110,7 @@ end
 -- cf. http://lua-users.org/wiki/DirTreeIterator
 require "lfs"
 
-function dirtree(dir, cfg)
+function dirtree(dir, cfg, basedir)
   assert(dir and dir ~= "", "directory parameter is missing or empty")
   if string.sub(dir, -1) == "/" or string.sub(dir, -1) == "\\" then
     dir=string.sub(dir, 1, -2)
@@ -121,7 +122,7 @@ function dirtree(dir, cfg)
         entry=dir.."/"..entry
         -- Check if this entry should be ignored:
         if isIgnored(entry, cfg) then
-          log("Ignoring entry ", entry)
+          log("Ignoring entry ", entry:sub(#basedir+1))
         else
           local attr=lfs.attributes(entry)
           -- Return all the content before returning the folder itself:
@@ -152,7 +153,28 @@ local computeFileHash = function(fname)
   return md5.tohex(m:finish())
 end
 
-local checkEntry = function(attr, fname, dmap)
+local saveHash = function(key, hash, state)
+  -- check if this hash is already in the list:
+  state.hashes[hash] = state.hashes[hash] or {}
+  table.insert(state.hashes[hash], key)
+end
+
+local checkDuplicates = function(state)
+  local found = false
+
+  for hash,val in pairs(state.hashes) do
+    if #val > 1 then
+      log("\n=> Found duplicates with hash ", hash,":\n", serpent.block(val,{comment=false}))
+      found = true
+    end
+  end
+
+  if not found then
+    log("No duplicates found.")
+  end
+end
+
+local checkEntry = function(attr, fname, dmap, state)
   dmap.files = dmap.files or {}
   dmap.folders = dmap.folders or {}
   
@@ -162,11 +184,58 @@ local checkEntry = function(attr, fname, dmap)
   local key = fname:sub(#bdir+1)
 
   if attr.mode == "directory" then
+    -- This folder is found so we should remove it from the previous folders list:
+    -- eg. we only keep the not found/removed folders in that list
+    state.folders[key] = nil
+
     list = dmap.folders
+
+    local desc = list[key]
+    if not desc then
+      desc = {}
+      list[key] = desc
+    end
+
+    -- We cannot rely on the modification date for a folder, so we have to concatenate all the content hashes
+    -- Taking into account that the "removed files" are still in the current file list.
+    -- But we can assume that the hash for all the valid files have been updated already.
+    local hashes = {}
+    local prefix = key.."/"
+    local nf = #prefix 
+
+    for k,v in pairs(dmap.files) do
+      -- Check if this file is in this folder:
+      -- And if it was not removed.
+      if k:sub(1, nf) == prefix and not state.files[k] then
+        table.insert(hashes, v.hash)
+      end
+    end
+
+    -- sort all hashes:
+    table.sort(hashes)
+
+    -- Concatenate all the hashes in a string:
+    local str = table.concat(hashes)
+
+    -- and hash this string:
+    local hash = md5.sumhexa(str)
+
+    -- Chekc if this folder was updated:
+    if desc.hash and desc.hash ~= hash then
+      log("Content for folder ", key," was updated.")
+    end
+
+    desc.hash = hash
+
+    saveHash(key, desc.hash, state)
     return
   end
 
   if attr.mode == "file" then
+    -- This file is found so we should remove it from the previous files list:
+    -- eg. we only keep the not found/removed files in that list
+    state.files[key] = nil
+
     -- Retrieve the record on this element if any:
     local desc = list[key]
     if not desc then
@@ -176,7 +245,7 @@ local checkEntry = function(attr, fname, dmap)
 
     if not desc.time or desc.time~=attr.modification then
       if desc.time then
-        log("Content from ",fname," was updated.")
+        log("Content from ",key," was updated.")
       end
 
       -- Compute the file hash:
@@ -189,13 +258,12 @@ local checkEntry = function(attr, fname, dmap)
       desc.time = attr.modification
     end
 
+    saveHash(key, desc.hash, state)
     return
   end
 
-  log("Ignoring entry ",fname," of type ", attr.mode)
+  log("Ignoring entry ",key," of type ", attr.mode)
 end
-
-local serpent = require("serpent")
 
 local writeData = function(data, fname)
   if file_exists(fname) then
@@ -213,9 +281,23 @@ local writeData = function(data, fname)
   f:close()
 end
 
+local processRemoved = function(dmap, state)
+  -- Process all the removed files:
+  for k,v in pairs(state.files) do
+    log("File ", k, " was removed.")
+    dmap.files[k] = nil
+  end
+  for k,v in pairs(state.folders) do
+    log("Folder ", k, " was removed.")
+    dmap.folders[k] = nil
+  end
+end
+
 return {
   dirtree = dirtree,
   checkEntry = checkEntry,
-  writeData = writeData
+  writeData = writeData,
+  processRemoved = processRemoved,
+  checkDuplicates = checkDuplicates
 }
 

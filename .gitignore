@@ -1,0 +1,3 @@
+# Ignoring dedup data files:
+dedup_data.lua
+*.bak

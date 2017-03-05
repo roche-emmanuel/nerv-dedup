@@ -44,13 +44,35 @@ end
 
 dmap.basedir = fname.."/"
 
-for filename, attr in utils.dirtree(fname, cfg) do
-  -- Check the provided entry:
-  log("Found ",attr.mode,": ",filename)
-  utils.checkEntry(attr, filename, dmap)
+-- keep the list of previous files and folders if any:
+local state = {}
+
+state.files = {}
+state.folders = {}
+
+for k,v in pairs(dmap.files or {}) do
+  state.files[k] = true
 end
+for k,v in pairs(dmap.folders or {}) do
+  state.folders[k] = true
+end
+
+-- Keep a list of hashes:
+state.hashes = {}
+
+for filename, attr in utils.dirtree(fname, cfg, dmap.basedir) do
+  -- Check the provided entry:
+  -- log("Found ",attr.mode,": ",filename)
+  utils.checkEntry(attr, filename, dmap, state)
+end
+
+-- remove the deleted files and folders
+utils.processRemoved(dmap, state)
 
 -- Write the data file:
 utils.writeData(dmap, dfile)
 
-log("Done.")
+-- Check the current duplicates:
+utils.checkDuplicates(state)
+
+-- log("Done.")
