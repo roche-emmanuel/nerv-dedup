@@ -26,6 +26,10 @@ This utility can be used to look for duplicated files in a given folder, recursi
 
   * Initial release.
 
+### v1.0.1 - 05/03/2017
+
+  * Added C md5 implementation (with FFI access) providing a significant speed up of about 60x !
+
 ## License
 
   This code is released under the MIT license.
