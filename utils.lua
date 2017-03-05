@@ -152,7 +152,7 @@ local computeFileHash = function(fname)
   local m = md5.new()
   local file = io.open(fname, "rb")
   while true do
-    local chunk = file:read(16*1024) -- 16kB at a time
+    local chunk = file:read(64*1024) -- 64kB at a time
     if not chunk then break end
     m:update(chunk)
   end
