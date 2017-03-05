@@ -3,7 +3,13 @@ if(#arg == 0) then
 end
 
 package.path = arg[1].."?.lua;"..package.path
-package.cpath = arg[1].."bin/?.so;"..arg[1].."bin/?.dll;"..package.cpath
+
+local ffi = require("ffi")
+if ffi.os == "Linux" then
+  package.cpath = arg[1].."bin/?.so;"..package.cpath
+else
+  package.cpath = arg[1].."bin/?.dll;"..package.cpath
+end
 
 -- print("package.path: "..package.path)
 
