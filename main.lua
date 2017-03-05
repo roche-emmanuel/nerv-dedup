@@ -3,6 +3,8 @@ if(#arg == 0) then
 end
 
 package.path = arg[1].."?.lua;"..package.path
+package.cpath = arg[1].."bin/?.so;"..arg[1].."bin/?.dll;"..package.cpath
+
 -- print("package.path: "..package.path)
 
 local utils = require("utils")
