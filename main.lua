@@ -73,6 +73,6 @@ utils.processRemoved(dmap, state)
 utils.writeData(dmap, dfile)
 
 -- Check the current duplicates:
-utils.checkDuplicates(state)
+utils.checkDuplicates(state, cfg)
 
 -- log("Done.")

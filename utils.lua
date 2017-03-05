@@ -1,4 +1,5 @@
 local serpent = require("serpent")
+require "lfs"
 
 -- Common utility elements to write log outputs conviniently:
 local writtenTables = {};
@@ -86,7 +87,9 @@ function write(...)
 end
 
 _G.log = function(...)
-  print(write(...))
+  io.write(write(...).."\n")
+  io.flush()
+  -- print(write(...))
 end
 
 -- see if the file exists
@@ -108,7 +111,6 @@ local isIgnored = function(entry, cfg)
 end
 
 -- cf. http://lua-users.org/wiki/DirTreeIterator
-require "lfs"
 
 function dirtree(dir, cfg, basedir)
   assert(dir and dir ~= "", "directory parameter is missing or empty")
@@ -126,10 +128,14 @@ function dirtree(dir, cfg, basedir)
         else
           local attr=lfs.attributes(entry)
           -- Return all the content before returning the folder itself:
-          if attr.mode == "directory" then
-            yieldtree(entry)
+          if not attr then
+            log("[ERROR]: Cannot retrieve attributes for entry ".. entry)
+          else
+            if attr.mode == "directory" then
+              yieldtree(entry)
+            end
+            coroutine.yield(entry,attr)
           end
-          coroutine.yield(entry,attr)
         end
       end
     end
@@ -142,6 +148,7 @@ local md5 = require("md5")
 
 local computeFileHash = function(fname)
   
+  log("Computing hash for file ", fname,"...")
   local m = md5.new()
   local file = io.open(fname, "rb")
   while true do
@@ -159,18 +166,41 @@ local saveHash = function(key, hash, state)
   table.insert(state.hashes[hash], key)
 end
 
-local checkDuplicates = function(state)
+local checkDuplicates = function(state, cfg)
   local found = false
 
+  local tt = {}
+  local emp = ""
+
   for hash,val in pairs(state.hashes) do
-    if #val > 1 then
-      log("\n=> Found duplicates with hash ", hash,":\n", serpent.block(val,{comment=false}))
+    if hash == "" then
+      if cfg.remove_empty_folders then
+        for _,folder in ipairs(val) do
+          log("Removing empty folder: ", folder)
+          lfs.rmdir(folder)
+        end
+      else
+        emp = "\n\n=> List of empty folders: ".. serpent.block(val,{comment=false})
+      end
+    elseif #val > 1 then
+      table.insert(tt, "\n\n=> Found duplicates with hash "..hash..":\n")
+      table.insert(tt, serpent.block(val,{comment=false}))
       found = true
     end
   end
 
   if not found then
     log("No duplicates found.")
+    -- Remove the dedup file log if any:
+    if(file_exists("dedup.log")) then
+      os.remove("dedup.log")
+    end
+  else
+    local str = table.concat(tt)..emp
+    log(str)
+    f = io.open("dedup.log","w")
+    f:write(str)
+    f:close();
   end
 end
 
@@ -207,7 +237,23 @@ local checkEntry = function(attr, fname, dmap, state)
       -- Check if this file is in this folder:
       -- And if it was not removed.
       if k:sub(1, nf) == prefix and not state.files[k] then
-        table.insert(hashes, v.hash)
+        -- Ensure that this is a direct file:
+        local suffix = k:sub(nf+1) 
+        if not suffix:find("/") and not suffix:find("\\") then 
+          table.insert(hashes, v.hash)
+        end
+      end
+    end
+
+    for k,v in pairs(dmap.folders) do
+      -- Check if this file is in this folder:
+      -- And if it was not removed.
+      if k:sub(1, nf) == prefix and not state.folders[k] then
+        -- Ensure that this is a direct file:
+        local suffix = k:sub(nf+1) 
+        if not suffix:find("/") and not suffix:find("\\") then 
+          table.insert(hashes, v.hash)
+        end
       end
     end
 
@@ -217,8 +263,11 @@ local checkEntry = function(attr, fname, dmap, state)
     -- Concatenate all the hashes in a string:
     local str = table.concat(hashes)
 
+    -- if the content hashes are empty, this means we have no content in this folder.
+    -- In that case we use an emtpy hash:
+
     -- and hash this string:
-    local hash = md5.sumhexa(str)
+    local hash = str=="" and "" or md5.sumhexa(str)
 
     -- Chekc if this folder was updated:
     if desc.hash and desc.hash ~= hash then
