@@ -210,6 +210,7 @@ end
 
 local checkEntry = function(attr, fname, dmap, state)
   dmap.files = dmap.files or {}
+  dmap.times = dmap.times or {}
   dmap.folders = dmap.folders or {}
   
   local list = dmap.files
@@ -224,11 +225,7 @@ local checkEntry = function(attr, fname, dmap, state)
 
     list = dmap.folders
 
-    local desc = list[key]
-    if not desc then
-      desc = {}
-      list[key] = desc
-    end
+    local phash = list[key]
 
     -- We cannot rely on the modification date for a folder, so we have to concatenate all the content hashes
     -- Taking into account that the "removed files" are still in the current file list.
@@ -244,7 +241,7 @@ local checkEntry = function(attr, fname, dmap, state)
         -- Ensure that this is a direct file:
         local suffix = k:sub(nf+1) 
         if not suffix:find("/") and not suffix:find("\\") then 
-          table.insert(hashes, v.hash)
+          table.insert(hashes, v)
         end
       end
     end
@@ -256,7 +253,7 @@ local checkEntry = function(attr, fname, dmap, state)
         -- Ensure that this is a direct file:
         local suffix = k:sub(nf+1) 
         if not suffix:find("/") and not suffix:find("\\") then 
-          table.insert(hashes, v.hash)
+          table.insert(hashes, v)
         end
       end
     end
@@ -275,13 +272,13 @@ local checkEntry = function(attr, fname, dmap, state)
     local hash = str=="" and "" or glue.tohex(md5.sum(str))
 
     -- Chekc if this folder was updated:
-    if desc.hash and desc.hash ~= hash then
+    if phash and phash ~= hash then
       log("Content for folder ", key," was updated.")
     end
 
-    desc.hash = hash
+    list[key] = hash
 
-    saveHash(key, desc.hash, state)
+    saveHash(key, hash, state)
     return
   end
 
@@ -291,14 +288,11 @@ local checkEntry = function(attr, fname, dmap, state)
     state.files[key] = nil
 
     -- Retrieve the record on this element if any:
-    local desc = list[key]
-    if not desc then
-      desc = {}
-      list[key] = desc
-    end
+    local phash = list[key]
+    local ptime = dmap.times[key]
 
-    if not desc.time or desc.time~=attr.modification then
-      if desc.time then
+    if not ptime or ptime~=attr.modification then
+      if ptime then
         log("Content from ",key," was updated.")
       end
 
@@ -307,13 +301,14 @@ local checkEntry = function(attr, fname, dmap, state)
       local hash = computeFileHash(fname)
 
       -- Add this hash for the file:
-      desc.hash = hash
+      phash = hash
+      list[key] = hash
 
       -- Write the last modification time:
-      desc.time = attr.modification
+      dmap.times[key] = attr.modification
     end
 
-    saveHash(key, desc.hash, state)
+    saveHash(key, phash, state)
     return
   end
 
