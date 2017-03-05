@@ -1,7 +1,6 @@
 # NervTech Dedup utility
 
-This utility can be used to look for duplicated files in a given folder, recursively.
-
+This utility can be used to look for duplicated files in a given folder, recursively. (Check the [NervDedup Project Webpage](http://wiki.nervtech.org/doku.php?id=public:projects:nerv_dedup:nerv_dedup) for more details).
 
 ## Usage
 
