@@ -148,7 +148,6 @@ local md5 = require("md5")
 
 local computeFileHash = function(fname)
   
-  log("Computing hash for file ", fname,"...")
   local m = md5.new()
   local file = io.open(fname, "rb")
   while true do
@@ -298,6 +297,7 @@ local checkEntry = function(attr, fname, dmap, state)
       end
 
       -- Compute the file hash:
+      log("Computing hash for file ", key,"...")
       local hash = computeFileHash(fname)
 
       -- Add this hash for the file:
